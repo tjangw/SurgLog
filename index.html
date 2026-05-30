@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0f6e56">
+<title>SurgLog</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<style>
+/* ── Reset & variables ─────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f8f7f4;--surface:#fff;--surface2:#f1efe8;--surface3:#e8e6de;
+  --text:#1a1a18;--text2:#5f5e5a;--text3:#909088;
+  --border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.05);
+  --accent:#0f6e56;--acl:#e1f5ee;--act:#085041;
+  --blue:#1560a8;--bll:#e6f1fb;--blt:#0c447c;
+  --amber:#b87214;--aml:#faeeda;--amt:#5a3406;
+  --danger:#9e2a2a;--dgl:#fcebeb;--dgt:#9e2a2a;
+  --r:12px;--rs:8px;--rx:16px;
+  --nav-h:62px;--hdr-h:54px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;
+  display:flex;flex-direction:column;max-width:430px;margin:0 auto;
+  box-shadow:0 0 40px rgba(0,0,0,.08)}
+input,select,textarea,button{font-family:inherit;font-size:inherit}
+input[type=file]{display:none}
+
+/* ── Layout shells ─────────────────────────────────────────────────────── */
+#hdr{height:var(--hdr-h);background:var(--surface);border-bottom:.5px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 16px;
+  position:relative;z-index:50;flex-shrink:0}
+#hdr-title{font-size:17px;font-weight:600}
+#hdr-sub{font-size:11px;color:var(--text3);margin-top:1px}
+#hdr-action{display:flex;gap:8px}
+#screens{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.screen{display:none;padding:14px 14px 24px}
+.screen.act{display:block}
+#nav{height:var(--nav-h);background:var(--surface);border-top:.5px solid var(--border);
+  display:flex;flex-shrink:0}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;font-size:9.5px;color:var(--text3);background:none;border:none;cursor:pointer;
+  padding:6px 2px;transition:color .15s;letter-spacing:.2px;font-weight:500}
+.nb.on{color:var(--accent)}
+.nb svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Cards & sections ──────────────────────────────────────────────────── */
+.card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);
+  padding:13px 15px;margin-bottom:11px}
+.sh{font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.7px;margin:18px 0 9px}
+.sh:first-child{margin-top:0}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 15px;border-radius:var(--rs);font-size:13.5px;font-weight:500;
+  border:.5px solid var(--border);background:var(--surface);color:var(--text);
+  cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.pr{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.full{width:100%;margin-bottom:8px}
+.btn.blue{background:var(--bll);color:var(--blt);border-color:var(--blue)}
+.btn.danger{background:var(--dgl);color:var(--dgt);border-color:var(--danger)}
+.btn:disabled{opacity:.45;pointer-events:none}
+
+/* ── Form fields ───────────────────────────────────────────────────────── */
+.fi{margin-bottom:13px}
+.fi label{display:block;font-size:11.5px;font-weight:600;color:var(--text3);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.fi input,.fi select,.fi textarea{width:100%;background:var(--surface);
+  border:.5px solid var(--border);border-radius:var(--rs);padding:10px 12px;
+  font-size:14.5px;color:var(--text);outline:none;transition:border-color .15s}
+.fi input:focus,.fi select:focus,.fi textarea:focus{border-color:var(--accent)}
+.fi textarea{resize:vertical;min-height:76px}
+.fi-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fi-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* ── Badges & chips ────────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.bg-pr{background:var(--acl);color:var(--act)}
+.bg-bl{background:var(--bll);color:var(--blt)}
+.bg-am{background:var(--aml);color:var(--amt)}
+.bg-gy{background:var(--surface2);color:var(--text3)}
+.bg-dg{background:var(--dgl);color:var(--dgt)}
+.chip{padding:6px 13px;border-radius:20px;font-size:12.5px;border:.5px solid var(--border);
+  background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap;
+  transition:all .13s;flex-shrink:0;font-weight:500}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Op list item ──────────────────────────────────────────────────────── */
+.oi{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;margin-bottom:9px;cursor:pointer;transition:border-color .13s}
+.oi:active{border-color:var(--accent)}
+.oi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.oi-title{font-size:14.5px;font-weight:500;flex:1;margin-right:8px;line-height:1.3}
+.oi-date{font-size:11.5px;color:var(--text3);white-space:nowrap;margin-top:1px}
+.oi-meta{font-size:12px;color:var(--text2);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* ── Stat cards ────────────────────────────────────────────────────────── */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px}
+.sc{background:var(--surface);border:.5px solid var(--border);border-radius:var(--rs);
+  padding:11px 13px}
+.sc-l{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.sc-v{font-size:24px;font-weight:600;color:var(--text);line-height:1}
+.sc-s{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* ── Bar chart ─────────────────────────────────────────────────────────── */
+.bar-wrap{margin-bottom:7px}
+.bar-lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px}
+.bar-lbl span:last-child{font-weight:600;color:var(--text)}
+.bar-track{background:var(--surface2);border-radius:4px;height:7px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s ease}
+
+/* ── Overlays ──────────────────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:200;
+  display:none;flex-direction:column;max-width:430px;margin:0 auto}
+.overlay.open{display:flex}
+.ov-hdr{background:var(--surface);border-bottom:.5px solid var(--border);
+  padding:13px 15px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.ov-body{flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
+.back-btn{background:none;border:none;cursor:pointer;color:var(--accent);
+  font-size:14px;font-weight:500;padding:4px;display:flex;align-items:center;gap:3px}
+
+/* ── Search bar ────────────────────────────────────────────────────────── */
+.srch-wrap{position:relative;margin-bottom:12px}
+.srch-wrap input{width:100%;background:var(--surface);border:.5px solid var(--border);
+  border-radius:var(--r);padding:10px 14px 10px 40px;font-size:14.5px;color:var(--text);
+  outline:none;transition:border-color .15s}
+.srch-wrap input:focus{border-color:var(--accent)}
+.srch-wrap svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  width:17px;height:17px;stroke:var(--text3);fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.srch-clear{position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  background:var(--surface3);border:none;border-radius:50%;width:20px;height:20px;
+  cursor:pointer;font-size:12px;display:none;align-items:center;justify-content:center;color:var(--text3)}
+.srch-clear.vis{display:flex}
+
+/* ── Filter bar ────────────────────────────────────────────────────────── */
+.filter-scroll{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:12px}
+.filter-scroll::-webkit-scrollbar{display:none}
+
+/* ── Photo zone ────────────────────────────────────────────────────────── */
+.pz{border:1.5px dashed var(--border);border-radius:var(--r);padding:20px;
+  text-align:center;cursor:pointer;transition:border-color .15s;background:var(--surface2)}
+.pz:active{border-color:var(--accent)}
+
+/* ── Toggle ────────────────────────────────────────────────────────────── */
+.tog{width:44px;height:26px;background:var(--surface3);border-radius:13px;
+  border:.5px solid var(--border);cursor:pointer;position:relative;transition:background .18s;flex-shrink:0}
+.tog.on{background:var(--accent)}
+.tog::after{content:'';position:absolute;width:20px;height:20px;background:#fff;
+  border-radius:50%;top:2px;left:2px;transition:transform .18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tog.on::after{transform:translateX(18px)}
+
+/* ── Alerts ────────────────────────────────────────────────────────────── */
+.alert{border-radius:var(--rs);padding:11px 13px;font-size:13px;margin-bottom:11px;line-height:1.5}
+.alert.gr{background:var(--acl);color:var(--act);border:.5px solid var(--accent)}
+.alert.am{background:var(--aml);color:var(--amt);border:.5px solid var(--amber)}
+.alert.bl{background:var(--bll);color:var(--blt);border:.5px solid var(--blue)}
+.alert.dg{background:var(--dgl);color:var(--dgt);border:.5px solid var(--danger)}
+
+/* ── Divider ───────────────────────────────────────────────────────────── */
+.divider{height:.5px;background:var(--border2);margin:12px 0}
+
+/* ── GSET check item ───────────────────────────────────────────────────── */
+.gi{display:flex;align-items:flex-start;gap:11px;padding:10px 0;
+  border-bottom:.5px solid var(--border2)}
+.gi:last-child{border-bottom:none}
+.gchk{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--border);
+  background:var(--surface);cursor:pointer;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;transition:all .13s;margin-top:1px}
+.gchk.on{background:var(--accent);border-color:var(--accent)}
+.gchk.on::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+.gi-info{flex:1}
+.gi-title{font-size:13.5px;color:var(--text);line-height:1.3}
+.gi-desc{font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.4}
+.gi-pts{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;
+  background:var(--acl);color:var(--act);white-space:nowrap;flex-shrink:0;margin-top:2px}
+
+/* ── Progress ──────────────────────────────────────────────────────────── */
+.prog-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:8px}
+.prog-fill{height:100%;border-radius:3px;transition:width .4s ease;background:var(--accent)}
+
+/* ── Settings row ──────────────────────────────────────────────────────── */
+.sr{display:flex;justify-content:space-between;align-items:center;
+  padding:12px 0;border-bottom:.5px solid var(--border2)}
+.sr:last-child{border-bottom:none;padding-bottom:0}
+.sr-label{font-size:14.5px;color:var(--text)}
+.sr-sub{font-size:11.5px;color:var(--text3);margin-top:1px}
+
+/* ── Empty state ───────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty-icon{font-size:38px;margin-bottom:12px;opacity:.35}
+.empty-text{font-size:14px}
+
+/* ── Analytics table ───────────────────────────────────────────────────── */
+.atbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.atbl th{background:var(--surface2);padding:7px 10px;text-align:left;
+  font-weight:600;color:var(--text2);border-bottom:.5px solid var(--border)}
+.atbl td{padding:7px 10px;border-bottom:.5px solid var(--border2);color:var(--text)}
+.atbl tr:last-child td{border-bottom:none}
+.atbl tr:nth-child(even) td{background:var(--surface2)}
+
+/* ── Modal ─────────────────────────────────────────────────────────────── */
+#modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;
+  display:none;align-items:flex-end;justify-content:center}
+#modal-bg.open{display:flex}
+#modal{background:var(--surface);border-radius:var(--rx) var(--rx) 0 0;
+  width:100%;max-width:430px;max-height:85vh;overflow-y:auto;padding:20px 16px 32px}
+.modal-handle{width:36px;height:4px;background:var(--surface3);border-radius:2px;
+  margin:0 auto 16px}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ HEADER ══════════════════════════ -->
+<div id="hdr">
+  <div>
+    <div id="hdr-title">SurgLog</div>
+    <div id="hdr-sub">RACS Surgical Logbook</div>
+  </div>
+  <div id="hdr-action">
+    <button class="btn sm pr" onclick="openAdd()">+ Case</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ SCREENS ═════════════════════════ -->
+<div id="screens">
+
+<!-- ─── DASHBOARD ────────────────────────────────────────── -->
+<div id="s-home" class="screen act">
+  <div id="dash-api-warn" class="alert am" style="display:none">
+    ⚡ Add your Anthropic API key in Settings to enable AI photo extraction.
+    <button class="btn sm" style="margin-top:8px;width:100%" onclick="showScreen('settings')">Go to Settings</button>
+  </div>
+  <div class="sg" id="dash-stats"></div>
+  <div class="sh">Cases by role</div>
+  <div class="card" id="dash-role-chart"></div>
+  <div class="sh">Cases by specialty</div>
+  <div class="card" id="dash-spec-chart"></div>
+  <div class="sh">Recent cases</div>
+  <div id="dash-recent"></div>
+</div>
+
+<!-- ─── SEARCH ───────────────────────────────────────────── -->
+<div id="s-search" class="screen">
+  <div class="srch-wrap">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" id="srch-input" placeholder="Search by name, UR number, procedure…"
+      oninput="runSearch(this.value)" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="srch-clear" id="srch-clear" onclick="clearSearch()">✕</button>
+  </div>
+  <div id="srch-results"></div>
+</div>
+
+<!-- ─── LOGBOOK + FILTERS ─────────────────────────────────── -->
+<div id="s-log" class="screen">
+  <!-- Active filter summary -->
+  <div id="active-filter-bar" style="margin-bottom:10px;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:12.5px;font-weight:600;color:var(--accent)" id="active-filter-label"></span>
+      <button class="btn sm" onclick="clearAllFilters()">Clear filters</button>
+    </div>
+    <div id="filter-analytics" class="card" style="padding:11px 13px;margin-bottom:10px"></div>
+  </div>
+  <!-- Filter chips -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-size:12px;color:var(--text3)" id="result-count"></span>
+    <button class="btn sm" onclick="openFilterPanel()">⚙ Filters</button>
+  </div>
+  <div class="filter-scroll" id="quick-chips"></div>
+  <div id="log-list"></div>
+</div>
+
+<!-- ─── ANALYTICS ────────────────────────────────────────── -->
+<div id="s-analytics" class="screen">
+  <!-- Filter controls for analytics -->
+  <div class="card" style="padding:12px 14px;margin-bottom:11px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Filter analytics by</div>
+    <div class="fi-row" style="margin-bottom:10px">
+      <div class="fi" style="margin:0"><label>Hospital</label>
+        <select id="an-hospital" onchange="renderAnalytics()"><option value="">All hospitals</option></select>
+      </div>
+      <div class="fi" style="margin:0"><label>Specialty</label>
+        <select id="an-specialty" onchange="renderAnalytics()"><option value="">All specialties</option></select>
+      </div>
+    </div>
+    <div class="fi-row" style="margin-bottom:10px">
+      <div class="fi" style="margin:0"><label>Role</label>
+        <select id="an-role" onchange="renderAnalytics()"><option value="">All roles</option>
+          <option>Primary Operator</option><option>Supervised</option>
+          <option>1st Assist</option><option>2nd Assist</option><option>Observer</option>
+        </select>
+      </div>
+      <div class="fi" style="margin:0"><label>Year</label>
+        <select id="an-year" onchange="renderAnalytics()"><option value="">All years</option></select>
+      </div>
+    </div>
+    <div class="fi-row">
+      <div class="fi" style="margin:0"><label>Date from</label>
+        <input type="date" id="an-from" onchange="renderAnalytics()">
+      </div>
+      <div class="fi" style="margin:0"><label>Date to</label>
+        <input type="date" id="an-to" onchange="renderAnalytics()">
+      </div>
+    </div>
+  </div>
+  <div id="analytics-body"></div>
+</div>
+
+<!-- ─── ADD / EDIT ────────────────────────────────────────── -->
+<div id="s-add" class="screen">
+  <div class="sh" style="margin-top:0">Scan operation note</div>
+  <div class="card">
+    <div class="pz" onclick="document.getElementById('opnote-inp').click()">
+      <div style="font-size:28px;margin-bottom:6px">📄</div>
+      <div style="font-size:13px;color:var(--text2)">Tap to photograph operation note pages<br>
+        <span style="font-size:11px;opacity:.6">Select multiple pages at once — AI reads all pages</span></div>
+    </div>
+    <!-- multiple + no capture so gallery picker opens, allowing multi-select -->
+    <input type="file" id="opnote-inp" accept="image/*" multiple onchange="extractOpNote(this)">
+    <div id="opnote-pages-preview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px"></div>
+    <div id="opnote-result" style="margin-top:6px"></div>
+  </div>
+
+  <!-- Fallback sticker zone — shown only when patient fields still missing after op note scan -->
+  <div id="sticker-fallback" style="display:none">
+    <div class="sh">Missing patient details — scan sticker</div>
+    <div class="card">
+      <div id="missing-fields-list" style="font-size:13px;color:var(--amber);margin-bottom:10px;line-height:1.5"></div>
+      <div class="pz" onclick="document.getElementById('sticker-inp').click()" style="border-color:var(--amber)">
+        <div style="font-size:24px;margin-bottom:5px">📷</div>
+        <div style="font-size:13px;color:var(--text2)">Tap to photograph patient ID sticker<br>
+          <span style="font-size:11px;opacity:.6">Fills in the missing fields above</span></div>
+      </div>
+      <input type="file" id="sticker-inp" accept="image/*" capture="environment" onchange="extractSticker(this)">
+      <div id="sticker-result" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="sh">Patient details</div>
+  <div class="card">
+    <div style="margin-top:2px">
+      <div class="fi-row">
+        <div class="fi"><label>Surname</label><input type="text" id="f-surname" placeholder="Smith"></div>
+        <div class="fi"><label>Given name</label><input type="text" id="f-given" placeholder="John"></div>
+      </div>
+      <div class="fi-row">
+        <div class="fi"><label>Date of birth</label><input type="date" id="f-dob" onchange="calcAge()"></div>
+        <div class="fi"><label>Age</label><input type="number" id="f-age" placeholder="—" style="background:var(--surface2)" readonly></div>
+      </div>
+      <div class="fi"><label>UR / Patient ID</label><input type="text" id="f-ur" placeholder="123456"></div>
+    </div>
+  </div>
+  <div class="sh">Operation details</div>
+  <div class="card">
+    <div style="margin-top:13px">
+      <div class="fi"><label>Date of operation</label><input type="date" id="f-opdate"></div>
+      <div class="fi"><label>Procedure / Operation</label>
+        <input type="text" id="f-proc" placeholder="e.g. Laparoscopic cholecystectomy" oninput="debounceClassify()"></div>
+      <div class="fi"><label>Your role</label>
+        <select id="f-role">
+          <option value="">Select…</option>
+          <option>Primary Operator</option><option>1st Assist</option>
+          <option>2nd Assist</option><option>Supervised</option><option>Observer</option>
+        </select>
+      </div>
+      <div class="fi-row">
+        <div class="fi"><label>Supervising consultant</label><input type="text" id="f-supervisor" placeholder="Dr. surname"></div>
+        <div class="fi"><label>Hospital</label><input type="text" id="f-hospital" placeholder="e.g. Royal Melbourne" list="hospital-list"></div>
+      </div>
+      <datalist id="hospital-list"></datalist>
+      <div class="fi-row">
+        <div class="fi"><label>1st Assist</label><input type="text" id="f-assist1" placeholder="Name/role"></div>
+        <div class="fi"><label>2nd Assist</label><input type="text" id="f-assist2" placeholder="Name/role"></div>
+      </div>
+      <div class="fi"><label>Anaesthetist</label><input type="text" id="f-anaesthetist" placeholder="Dr. surname"></div>
+      <div class="fi-row">
+        <div class="fi"><label>Specialty</label>
+          <select id="f-specialty">
+            <option value="">Select…</option>
+            <option>Upper GI</option><option>Lower GI / Colorectal</option>
+            <option>Hepatobiliary</option><option>Breast / Endocrine</option>
+            <option>Vascular</option><option>Trauma</option><option>Plastics</option>
+            <option>Orthopaedics</option><option>Urology</option><option>Gynaecology</option>
+            <option>Cardiothoracic</option><option>Neurosurgery</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fi"><label>Classification (AI)</label>
+          <input type="text" id="f-classification" placeholder="Auto…" style="background:var(--surface2)" readonly></div>
+      </div>
+      <div class="fi-row">
+        <div class="fi"><label>Complexity</label>
+          <select id="f-complexity">
+            <option value="">—</option>
+            <option value="1">1 — Straightforward</option><option value="2">2 — Minor</option>
+            <option value="3">3 — Moderate</option><option value="4">4 — Complex</option>
+            <option value="5">5 — Highly complex</option>
+          </select>
+        </div>
+        <div class="fi"><label>Outcome</label>
+          <select id="f-outcome">
+            <option>Uneventful</option><option>Minor complication</option>
+            <option>Major complication</option><option>Returned to theatre</option>
+            <option>Converted (lap→open)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sh">My operative notes</div>
+  <div class="card">
+    <div class="fi"><label>Key steps I performed</label>
+      <textarea id="f-steps" placeholder="Key steps you personally performed…" style="min-height:90px"></textarea></div>
+    <div class="fi"><label>Learning points / reflections</label>
+      <textarea id="f-learning" placeholder="Reflections, complications, learning…" style="min-height:65px"></textarea></div>
+  </div>
+  <div class="sh">Clinical photos</div>
+  <div class="card">
+    <p style="font-size:12.5px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+      Photos are stored <strong>only on this device</strong> in encrypted local storage. They are never exported or sent anywhere.</p>
+    <div id="clinical-photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px"></div>
+    <div class="pz" onclick="document.getElementById('clinical-photo-inp').click()" style="padding:14px">
+      <div style="font-size:22px;margin-bottom:4px">🩺</div>
+      <div style="font-size:13px;color:var(--text2)">Add clinical photo<br><span style="font-size:11px;opacity:.6">Intraoperative findings, pathology specimens, imaging</span></div>
+    </div>
+    <input type="file" id="clinical-photo-inp" accept="image/*" multiple capture="environment" onchange="addClinicalPhotos(this)">
+    <div id="clinical-photo-status" style="margin-top:6px;font-size:12.5px;color:var(--accent)"></div>
+  </div>
+  <input type="hidden" id="f-edit-id">
+  <div style="display:flex;gap:9px">
+    <button class="btn pr" style="flex:1" onclick="saveCase()">Save case</button>
+    <button class="btn" onclick="clearForm();showScreen('home')">Cancel</button>
+  </div>
+  <div id="save-status" style="text-align:center;font-size:13px;color:var(--accent);margin-top:9px;min-height:18px"></div>
+</div>
+
+<!-- ─── GSET TRACKER ──────────────────────────────────────── -->
+<div id="s-gset" class="screen">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div>
+      <div style="font-size:20px;font-weight:700" id="gset-pts-display">0 / 29</div>
+      <div style="font-size:11px;color:var(--text3)">CV + Rurality points</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:12px;color:var(--text2)">Interview 50% • CV 20% • Rural 10%</div>
+      <div style="font-size:11px;color:var(--text3)">2026 selection → 2027 intake</div>
+    </div>
+  </div>
+  <div id="gset-prog-wrap" style="margin-bottom:14px"></div>
+  <div id="gset-gaps-alert"></div>
+  <div id="gset-sections"></div>
+</div>
+
+<!-- ─── SETTINGS ──────────────────────────────────────────── -->
+<div id="s-settings" class="screen">
+  <!-- API Key -->
+  <div class="sh" style="margin-top:0">Photo extraction</div>
+  <div class="card">
+    <div class="fi" style="margin-bottom:14px">
+      <label>Extraction mode</label>
+      <select id="s-ocr-mode" onchange="saveOcrMode(this.value)" style="font-size:14px">
+        <option value="hybrid">Hybrid — local OCR first, AI refines if needed (recommended)</option>
+        <option value="local">Local only — Tesseract, fully offline, no data leaves device</option>
+        <option value="api">AI only — best accuracy, sends image to Anthropic</option>
+      </select>
+    </div>
+    <div id="ocr-mode-desc" style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;padding:10px 12px;background:var(--surface2);border-radius:var(--rs)"></div>
+    <div class="sr">
+      <div>
+        <div class="sr-label">De-identify before API calls</div>
+        <div class="sr-sub">Strip patient name, DOB, UR number and surgeon names from text before sending to AI (always on for hybrid mode)</div>
+      </div>
+      <div class="tog on" id="tog-deident" onclick="toggleDeident()"></div>
+    </div>
+    <div id="deident-status" style="font-size:12px;color:var(--accent);margin-top:6px;min-height:14px"></div>
+    <div class="fi"><label>Anthropic API key</label>
+      <input type="password" id="s-apikey" placeholder="sk-ant-…" autocomplete="off"></div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:11px;line-height:1.6">
+      Required for Hybrid and AI-only modes. Stored only on this device.
+      Get a key at <strong>console.anthropic.com</strong></p>
+    <button class="btn sm pr" onclick="saveApiKey()">Save key</button>
+    <span id="api-save-status" style="font-size:12px;color:var(--accent);margin-left:8px"></span>
+  </div>
+
+  <!-- Data transfer -->
+  <div class="sh">Data & backup</div>
+  <div id="backup-banner"></div>
+  <div class="card">
+    <div class="sr">
+      <div><div class="sr-label">Export everything (.json)</div>
+        <div class="sr-sub">Full backup — cases + GSET + settings</div></div>
+      <button class="btn sm pr" onclick="exportJSON()">Export</button>
+    </div>
+    <div class="sr">
+      <div><div class="sr-label">Import backup</div>
+        <div class="sr-sub">Restore from .json file</div></div>
+      <button class="btn sm" onclick="document.getElementById('imp-file').click()">Import</button>
+    </div>
+    <input type="file" id="imp-file" accept=".json" onchange="importJSON(this)">
+    <div class="sr" style="border:none">
+      <div><div class="sr-label" style="color:var(--dgt)">Clear all data</div>
+        <div class="sr-sub">Wipes everything from this device</div></div>
+      <button class="btn sm danger" onclick="clearAllData()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Excel export -->
+  <div class="sh">Export to Excel / Google Sheets</div>
+  <div class="card">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+      Generates a formatted <strong>.xlsx</strong> with 4 sheets: Surgical Logbook, Dashboard,
+      RACS Format, and GSET Points Tracker. Opens directly in Excel or import into Google Sheets.
+    </div>
+    <div class="sr">
+      <div><div class="sr-label">Redact patient identifiers</div>
+        <div class="sr-sub">Replace names/DOB/UR with anonymous codes</div></div>
+      <div class="tog" id="tog-redact" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sr" style="border:none">
+      <div><div class="sr-label">Include personal notes</div>
+        <div class="sr-sub">Operative notes and reflections columns</div></div>
+      <div class="tog on" id="tog-notes" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <button class="btn pr full" style="margin-top:12px" onclick="exportXLSX()">
+      Download .xlsx
+    </button>
+    <button class="btn full" onclick="exportCSV()">Download CSV (logbook only)</button>
+    <button class="btn blue full" onclick="showGSheetsModal()">How to import into Google Sheets</button>
+  </div>
+
+  <!-- Criteria editor -->
+  <div class="sh">GSET criteria editor</div>
+  <div class="alert bl">When new regulations are published, update these values and the tracker recalculates automatically.</div>
+  <div class="card" id="criteria-card"></div>
+  <div style="display:flex;gap:9px;margin-top:-2px">
+    <button class="btn" onclick="resetCriteria()">Reset to 2026</button>
+    <button class="btn pr" style="flex:1" onclick="saveCriteria()">Save criteria</button>
+  </div>
+  <div id="criteria-status" style="text-align:center;font-size:13px;color:var(--accent);margin-top:8px;min-height:16px"></div>
+
+  <!-- Install -->
+  <div class="sh">Install as app</div>
+  <div class="card">
+    <p style="font-size:13px;color:var(--text2);line-height:1.7">
+      <strong>Android (Chrome):</strong> Three-dot menu → Add to Home Screen<br>
+      <strong>iPhone (Safari):</strong> Share button → Add to Home Screen<br>
+      The app opens fullscreen and works offline.
+    </p>
+  </div>
+
+  <!-- GitHub -->
+  <div class="sh">GitHub Pages hosting</div>
+  <div class="card">
+    <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:11px">
+      Host on a permanent URL so any new phone can open and install it without needing the file.
+    </p>
+    <button class="btn blue full" onclick="showGitHubModal()">Step-by-step GitHub instructions</button>
+  </div>
+
+  <div class="sh">About</div>
+  <div class="card">
+    <p style="font-size:12.5px;color:var(--text2);line-height:1.7">
+      SurgLog v1.1 — RACS GSET logbook<br>
+      All data stored locally on this device (IndexedDB + localStorage).<br>
+      No patient data is sent to any server except briefly during AI photo extraction.
+    </p>
+  </div>
+</div>
+
+</div><!-- /screens -->
+
+<!-- ══════════════════════ NAV ══════════════════════════════ -->
+<nav id="nav">
+  <button class="nb on" id="nb-home" onclick="showScreen('home')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard
+  </button>
+  <button class="nb" id="nb-search" onclick="showScreen('search');focusSearch()">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search
+  </button>
+  <button class="nb" id="nb-log" onclick="showScreen('log')">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Logbook
+  </button>
+  <button class="nb" id="nb-analytics" onclick="showScreen('analytics')">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics
+  </button>
+  <button class="nb" id="nb-gset" onclick="showScreen('gset')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>GSET
+  </button>
+  <button class="nb" id="nb-settings" onclick="showScreen('settings')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings
+  </button>
+</nav>
+
+<!-- ══════════════════════ OVERLAYS ════════════════════════ -->
+
+<!-- Case detail -->
+<div class="overlay" id="ov-detail">
+  <div class="ov-hdr">
+    <button class="back-btn" onclick="closeOverlay('ov-detail')">← Back</button>
+    <span id="ov-detail-title" style="font-size:15px;font-weight:500;flex:1">Case detail</span>
+    <button class="btn sm" onclick="editCurrentCase()">Edit</button>
+  </div>
+  <div class="ov-body" id="ov-detail-body"></div>
+</div>
+
+<!-- Filter panel -->
+<div class="overlay" id="ov-filter">
+  <div class="ov-hdr">
+    <button class="back-btn" onclick="closeOverlay('ov-filter');renderLogbook()">Apply</button>
+    <span style="font-size:15px;font-weight:500;flex:1">Filter cases</span>
+    <button class="btn sm danger" onclick="clearAllFilters();closeOverlay('ov-filter')">Clear all</button>
+  </div>
+  <div class="ov-body">
+    <div class="sh" style="margin-top:0">Date range</div>
+    <div class="card">
+      <div class="fi-row">
+        <div class="fi"><label>From</label><input type="date" id="fl-from"></div>
+        <div class="fi"><label>To</label><input type="date" id="fl-to"></div>
+      </div>
+    </div>
+    <div class="sh">Role</div>
+    <div class="card"><div class="filter-scroll" id="fl-roles" style="flex-wrap:wrap;gap:7px;overflow:visible"></div></div>
+    <div class="sh">Specialty</div>
+    <div class="card"><div class="filter-scroll" id="fl-specs" style="flex-wrap:wrap;gap:7px;overflow:visible"></div></div>
+    <div class="sh">Hospital</div>
+    <div class="card"><div id="fl-hospitals" style="display:flex;flex-wrap:wrap;gap:7px"></div></div>
+    <div class="sh">Outcome</div>
+    <div class="card"><div id="fl-outcomes" style="display:flex;flex-wrap:wrap;gap:7px"></div></div>
+    <div class="sh">Complexity</div>
+    <div class="card"><div id="fl-complexity" style="display:flex;flex-wrap:wrap;gap:7px"></div></div>
+    <div class="sh">Year</div>
+    <div class="card"><div id="fl-years" style="display:flex;flex-wrap:wrap;gap:7px"></div></div>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- Modal backdrop -->
+<div id="modal-bg" onclick="closeModal()">
+  <div id="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ JAVASCRIPT ══════════════════════ -->
+<script src="app.js"></script>
+</body>
+</html>
